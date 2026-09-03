@@ -186,8 +186,12 @@ cp .env.example .env
   CSV로 정리하세요. 한 행 = 안건(건축물 해체신고 건) 하나입니다.
 - CSV의 헤더(컬럼명)는 task YAML의 각 단계에 적힌 `csv_column` 값과
   일치해야 합니다.
-- 파일 첨부가 필요하면 별도 컬럼(예: `attachment_path`)에 로컬 파일 경로를
-  적고, 해당 단계를 `type: upload`로 추가하세요.
+- 첨부파일(바탕화면 등에 있는 서류)이 필요하면 `attachment_path` 컬럼에
+  전체 경로(예: `C:\Users\USER\Desktop\서류1.pdf`)를 적으세요. 매크로가
+  탐색기를 열어 마우스로 찾는 게 아니라, 이 경로를 업로드 버튼에 바로
+  건네줍니다. 대부분은 `action: upload` 그대로 되고, 만약 그 버튼이
+  진짜 "파일 선택" 창을 띄우는 방식이면 `via_dialog: true`를 추가하세요
+  (`config/tasks/demolition_report_case.example.yaml` 참고).
 
 ## 실행
 
@@ -210,6 +214,28 @@ python main.py --task demolition_report_case --input data/demolition_report_case
 # 잘 되는 걸 확인한 뒤에는 창 없이 실행 가능
 python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --headless
 ```
+
+## 바탕화면 아이콘으로 실행하기
+
+매번 터미널을 열어 명령어를 치는 대신, 저장소 루트의 `run_macro.bat`을
+더블클릭 한 번으로 실행할 수 있습니다 (venv 활성화 + `--attach` 실행이
+한 번에 됩니다). 다만 `.bat` 파일은 컴퓨터 설정에 따라 더블클릭해도
+메모장으로 열리는 경우가 있어, 아래처럼 **바탕화면 바로가기가 `cmd.exe`를
+직접 가리키게 만들면** 그 문제를 피할 수 있습니다.
+
+1. 바탕화면에서 마우스 오른쪽 클릭 → 새로 만들기 → 바로가기
+2. 항목 위치 입력란에 아래처럼 입력 (경로는 실제 저장소 위치로 맞추세요):
+
+   ```
+   cmd.exe /c "C:\Users\USER\test\run_macro.bat"
+   ```
+
+3. 다음 → 이름 입력(예: "해체신고 매크로") → 마침
+
+이제 이 바로가기를 더블클릭하면 검은 창이 뜨면서 매크로가 실행되고,
+끝나면 결과가 표시된 채로 창이 유지됩니다 (아무 키나 누르면 닫힘).
+실행 전에 디버깅용 Edge가 켜져 있고 로그인 + 해체신고처리 목록까지
+이동해둔 상태여야 합니다.
 
 ## 결과 확인
 

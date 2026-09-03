@@ -108,6 +108,16 @@ steps:
   - action: close_page
     page: doc_browse
 
+  # ── 2b. 첨부파일 업로드 (바탕화면 등 로컬 파일) ──────────────────
+  # CSV의 attachment_path 컬럼에 적힌 경로(예: C:\Users\USER\Desktop\서류.pdf)의
+  # 파일을 그대로 업로드합니다. 화면을 마우스로 뒤질 필요 없이 경로만 넘겨줍니다.
+  - action: upload
+    page: history
+    selector: "#TODO_attachment_input"       # TODO: 첨부파일 input[type=file] 요소
+    csv_column: attachment_path
+    # via_dialog: true   # 위 selector가 input이 아니라 "파일 선택" 버튼이라
+                          # 진짜 파일 선택 창이 뜬다면, 이 줄 주석을 풀어서 켜세요.
+
   # ── 3. 민원처리: 민원처리구분 탭에서 '해결' 선택 ─────────────────
   - action: click
     page: history

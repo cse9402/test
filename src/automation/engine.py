@@ -102,7 +102,16 @@ def _run_step(pages: dict, step: dict, row: dict, captured: dict, cert_profiles:
     elif action == "select":
         page.select_option(step["selector"], _resolve_value(step, row, captured))
     elif action == "upload":
-        page.set_input_files(step["selector"], _resolve_value(step, row, captured))
+        file_path = _resolve_value(step, row, captured)
+        if step.get("via_dialog"):
+            # selector가 파일 선택 "창"을 띄우는 버튼인 경우
+            # (input[type=file]을 직접 찾을 수 없을 때만 이걸 쓰세요)
+            with page.expect_file_chooser() as fc_info:
+                page.click(step["selector"])
+            fc_info.value.set_files(file_path)
+        else:
+            # selector가 input[type=file] 요소 자체인 경우 (기본, 더 안정적)
+            page.set_input_files(step["selector"], file_path)
     elif action == "check":
         page.check(step["selector"])
     elif action == "uncheck":
