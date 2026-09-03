@@ -1,8 +1,8 @@
-"""CLI 실행기: CSV의 각 행에 대해 지정한 작업(task)을 반복 실행한다.
+"""CLI 실행기: CSV의 각 행(건)에 대해 지정한 흐름(flow)을 처음부터 끝까지 반복 실행한다.
 
 사용 예:
-    python main.py --task document_register --input data/document_register_sample.csv
-    python main.py --task civil_complaint --input data/civil_complaint_sample.csv --headless
+    python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv
+    python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --headless
 """
 import argparse
 import csv
@@ -14,7 +14,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from .browser import start_browser, login, load_yaml
-from .engine import run_task_for_row
+from .engine import run_flow
 
 
 def read_rows(csv_path: str) -> list:
@@ -85,6 +85,18 @@ def main() -> int:
         page.goto(task_config["start_url"])
 
         delay = task_config.get("delay_between_rows_seconds", 3)
+        pages = {"main": page}
+
+        def close_extra_pages() -> None:
+            """main을 제외한, 흐름 중에 열렸던 팝업 창들을 정리한다."""
+            for key in list(pages.keys()):
+                if key == "main":
+                    continue
+                try:
+                    pages[key].close()
+                except Exception:  # noqa: BLE001
+                    pass
+                del pages[key]
 
         for idx, row in enumerate(rows, start=1):
             status = "fail"
@@ -93,7 +105,7 @@ def main() -> int:
 
             for attempt in range(1, args.max_retries + 1):
                 try:
-                    run_task_for_row(page, task_config, row)
+                    run_flow(pages, task_config, row)
                     status = "success"
                     error_message = ""
                     break
@@ -103,12 +115,13 @@ def main() -> int:
                     os.makedirs("screenshots", exist_ok=True)
                     screenshot_path = f"screenshots/row_{idx}_attempt_{attempt}.png"
                     try:
-                        page.screenshot(path=screenshot_path)
+                        pages["main"].screenshot(path=screenshot_path)
                     except Exception:  # noqa: BLE001
                         screenshot_path = ""
-                    # 실패 후 다음 시도 전 시작 화면으로 복귀
+                    # 실패 후 다음 시도 전, 열려있던 팝업을 정리하고 시작 화면으로 복귀
+                    close_extra_pages()
                     try:
-                        page.goto(task_config["start_url"])
+                        pages["main"].goto(task_config["start_url"])
                     except Exception:  # noqa: BLE001
                         pass
 
@@ -126,7 +139,8 @@ def main() -> int:
 
             if idx < len(rows):
                 time.sleep(delay)
-                page.goto(task_config["start_url"])
+                close_extra_pages()
+                pages["main"].goto(task_config["start_url"])
 
     finally:
         os.makedirs("results", exist_ok=True)

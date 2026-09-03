@@ -1,0 +1,111 @@
+# 건축물 해체신고처리 건 하나를 처음부터 끝까지 처리하는 흐름 예시.
+#
+# 실제 흐름: (로그인 후 메인 화면) → 건축물 생애이력(새 창 팝업) →
+#            건축물 해체신고처리 메뉴 → 문서등록(입력→제출→인증서 서명) →
+#            민원처리(입력→제출→인증서 서명)
+#
+# 사용법:
+#   1) 이 파일을 config/tasks/demolition_report_case.yaml 로 복사
+#   2) playwright codegen --channel msedge <로그인_URL> 로 실제 화면을 처음부터
+#      끝까지 한 번 녹화 (비밀번호는 반드시 가리고 다룰 것)
+#   3) 녹화된 코드를 보고 아래 TODO를 실제 선택자로 교체
+#
+# steps 의 각 항목:
+#   - action: click / fill / select / upload / check / uncheck / press /
+#             wait_for_selector / wait_for_timeout / handle_dialog /
+#             certificate_sign
+#   - page: 어느 창에서 실행할지 (기본값 "main"). 팝업으로 연 창은
+#           opens_page 로 지정한 이름으로 이후 단계에서 참조.
+#   - opens_page: click 이 새 창을 띄우는 경우, 그 창에 붙일 이름표
+#   - csv_column: 이 값을 CSV의 해당 컬럼에서 가져와 입력 (fill/select/upload)
+#   - value: csv_column 대신 고정값을 쓰고 싶을 때
+
+task_name: demolition_report_case
+
+start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 로그인 후 메인 화면 URL
+
+# 문서등록/민원처리 제출 시마다 반복되는 인증서 서명(전자서명) 선택자.
+# 로그인 때처럼 인증서를 다시 고를 필요 없이 비밀번호만 물어보는 경우가 많아
+# cert_login_button_selector / cert_storage_button_selector 는 기본적으로 생략.
+# 만약 서명할 때도 인증서를 다시 골라야 한다면 아래 두 줄의 주석을 풀고 채우세요.
+certificate_signature:
+  # cert_login_button_selector: "text=인증서 로그인"   # TODO (필요시)
+  # cert_storage_button_selector: "text=하드디스크"     # TODO (필요시)
+  # cert_select_by_label: true                          # 인증서를 다시 골라야 하면 true
+  password_selector: "#TODO_sign_pw_input"              # TODO
+  confirm_button_selector: "text=확인"                    # TODO
+
+steps:
+  # ── 1. 건축물 생애이력 새 창 열기 ──────────────────────────────
+  - action: click
+    page: main
+    selector: "text=건축물 생애이력"        # TODO
+    opens_page: history
+
+  # ── 2. 건축물 해체신고처리 메뉴로 이동 (history 창 안에서) ───────
+  - action: click
+    page: history
+    selector: "text=건축물 해체신고처리"      # TODO
+  - action: fill
+    page: history
+    selector: "#TODO_case_search_input"      # TODO: 안건번호 등으로 특정 건 찾기
+    csv_column: case_no
+  - action: click
+    page: history
+    selector: "#TODO_case_search_button"     # TODO
+
+  # ── 3. 문서등록 ───────────────────────────────────────────────
+  - action: click
+    page: history
+    selector: "text=문서등록"                # TODO
+  - action: fill
+    page: history
+    selector: "#TODO_doc_title_input"        # TODO
+    csv_column: doc_title
+  - action: fill
+    page: history
+    selector: "#TODO_doc_content_textarea"   # TODO
+    csv_column: doc_content
+  - action: click
+    page: history
+    selector: "#TODO_doc_submit_button"      # TODO
+  - action: handle_dialog
+    page: history
+    accept: true
+  - action: certificate_sign
+    page: history
+  - action: wait_for_selector
+    page: history
+    selector: "#TODO_doc_success_marker"     # TODO: 문서등록 완료 표시
+
+  # ── 4. 민원처리 ───────────────────────────────────────────────
+  - action: click
+    page: history
+    selector: "text=민원처리"                # TODO
+  - action: select
+    page: history
+    selector: "#TODO_process_type_select"    # TODO
+    csv_column: process_type
+  - action: fill
+    page: history
+    selector: "#TODO_answer_textarea"        # TODO
+    csv_column: answer_content
+  - action: click
+    page: history
+    selector: "#TODO_complaint_submit_button" # TODO
+  - action: handle_dialog
+    page: history
+    accept: true
+  - action: certificate_sign
+    page: history
+  - action: wait_for_selector
+    page: history
+    selector: "#TODO_complaint_success_marker" # TODO: 민원처리 완료 표시
+
+success_selector:
+  page: history
+  selector: "#TODO_complaint_success_marker"  # TODO
+
+# 각 건 처리 사이 대기 시간(초). 서버 부담을 줄이고, 인증서 서명창이
+# 매번 뜨는 만큼 넉넉하게 잡는 걸 권장.
+delay_between_rows_seconds: 5
