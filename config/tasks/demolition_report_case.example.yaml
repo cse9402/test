@@ -1,39 +1,48 @@
-# 건축물 해체신고처리 건 하나를 처음부터 끝까지 처리하는 흐름 예시.
+# 건축물 해체신고 민원 1건을 처음부터 끝까지 처리하는 흐름 예시.
 #
-# 실제 흐름: (로그인 후 메인 화면) → 건축물 생애이력(새 창 팝업) →
-#            건축물 해체신고처리 메뉴 → 문서등록(입력→제출→인증서 서명) →
-#            민원처리(입력→제출→인증서 서명)
+# 실제 흐름 (사용자 설명 기반):
+#   (로그인 후 메인) → 건축물 생애이력(새 창) → 건축물 해체신고처리 →
+#   목록에서 안건 1건 클릭 →
+#   [문서등록] 찾아보기 → 시행문 더블클릭 → 창 닫기 →
+#   [민원처리] 민원처리구분 탭에서 '해결' 선택 →
+#     허가(신고)번호 검색 → 조회 → 기관코드 조회 팝업에서 "진건읍" 검색 →
+#     "남양주시 진건읍 도시건축과" 선택 → 조회(일련번호/문서번호 생성) →
+#   처리내역 "건축물 해체 신고 수리" 입력, 처리근거에 방금 생성된 문서번호 입력 →
+#   저장 → 전자서명(하드디스크 탭, 인증서 선택, 비밀번호) → 확인 → 확인
 #
 # 사용법:
 #   1) 이 파일을 config/tasks/demolition_report_case.yaml 로 복사
-#   2) playwright codegen --channel msedge <로그인_URL> 로 실제 화면을 처음부터
-#      끝까지 한 번 녹화 (비밀번호는 반드시 가리고 다룰 것)
-#   3) 녹화된 코드를 보고 아래 TODO를 실제 선택자로 교체
+#   2) playwright codegen --channel msedge <로그인_URL> 로 이 전체 과정을
+#      실제로 한 번 끝까지 녹화 (비밀번호는 반드시 가리고 다룰 것)
+#   3) 녹화된 코드를 보면서 아래 TODO를 실제 선택자로 교체.
+#      특히 opens_page 로 표시해둔 부분이 실제로 새 창(팝업)인지,
+#      아니면 같은 창 안의 모달(레이어 팝업)인지 확인해서 안 맞으면
+#      opens_page 를 빼고 그냥 같은 page 값으로 통일하세요.
 #
 # steps 의 각 항목:
-#   - action: click / fill / select / upload / check / uncheck / press /
-#             wait_for_selector / wait_for_timeout / handle_dialog /
-#             certificate_sign
-#   - page: 어느 창에서 실행할지 (기본값 "main"). 팝업으로 연 창은
-#           opens_page 로 지정한 이름으로 이후 단계에서 참조.
-#   - opens_page: click 이 새 창을 띄우는 경우, 그 창에 붙일 이름표
-#   - csv_column: 이 값을 CSV의 해당 컬럼에서 가져와 입력 (fill/select/upload)
-#   - value: csv_column 대신 고정값을 쓰고 싶을 때
+#   - action: click / dblclick / fill / select / upload / check / uncheck /
+#             press / wait_for_selector / wait_for_timeout / handle_dialog /
+#             certificate_sign / capture_text / close_page
+#   - page: 어느 창에서 실행할지 (기본값 "main")
+#   - opens_page: click/dblclick 이 새 창을 띄우는 경우, 그 창에 붙일 이름표
+#   - csv_column: 이 값을 CSV의 해당 컬럼에서 가져와 입력
+#   - value: 고정값 (매번 똑같은 값일 때, 예: 관할 동 이름)
+#   - from_capture: capture_text로 미리 읽어둔 값을 다시 사용
+#   - selector에 "{value}" 를 쓰면 csv_column/value/from_capture 값으로 채워짐
+#     (예: 목록에서 안건번호로 특정 행을 찾아 클릭할 때)
 
 task_name: demolition_report_case
 
 start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 로그인 후 메인 화면 URL
 
-# 문서등록/민원처리 제출 시마다 반복되는 인증서 서명(전자서명) 선택자.
-# 로그인 때처럼 인증서를 다시 고를 필요 없이 비밀번호만 물어보는 경우가 많아
-# cert_login_button_selector / cert_storage_button_selector 는 기본적으로 생략.
-# 만약 서명할 때도 인증서를 다시 골라야 한다면 아래 두 줄의 주석을 풀고 채우세요.
+# 저장 시 뜨는 전자서명 창 선택자. 인증서를 다시 골라야 하므로
+# cert_storage_button_selector / cert_select_by_label 을 켜둠.
+# (로그인 때와 달리 "인증서 로그인" 버튼은 따로 없을 가능성이 높아 생략)
 certificate_signature:
-  # cert_login_button_selector: "text=인증서 로그인"   # TODO (필요시)
-  # cert_storage_button_selector: "text=하드디스크"     # TODO (필요시)
-  # cert_select_by_label: true                          # 인증서를 다시 골라야 하면 true
-  password_selector: "#TODO_sign_pw_input"              # TODO
-  confirm_button_selector: "text=확인"                    # TODO
+  cert_storage_button_selector: "text=하드디스크"   # TODO
+  cert_select_by_label: true
+  password_selector: "#TODO_sign_pw_input"         # TODO
+  confirm_button_selector: "text=확인"               # TODO
 
 steps:
   # ── 1. 건축물 생애이력 새 창 열기 ──────────────────────────────
@@ -42,70 +51,94 @@ steps:
     selector: "text=건축물 생애이력"        # TODO
     opens_page: history
 
-  # ── 2. 건축물 해체신고처리 메뉴로 이동 (history 창 안에서) ───────
+  # ── 2. 건축물 해체신고처리 메뉴 → 목록에서 이 건 클릭 ───────────
   - action: click
     page: history
     selector: "text=건축물 해체신고처리"      # TODO
-  - action: fill
-    page: history
-    selector: "#TODO_case_search_input"      # TODO: 안건번호 등으로 특정 건 찾기
-    csv_column: case_no
   - action: click
     page: history
-    selector: "#TODO_case_search_button"     # TODO
+    selector: "text={value}"                 # TODO: 목록에서 이 안건을 특정하는 표시(안건번호 등)
+    csv_column: case_no
 
-  # ── 3. 문서등록 ───────────────────────────────────────────────
+  # ── 3. 문서등록: 찾아보기 → 시행문 더블클릭 → 창 닫기 ───────────
   - action: click
     page: history
     selector: "text=문서등록"                # TODO
-  - action: fill
-    page: history
-    selector: "#TODO_doc_title_input"        # TODO
-    csv_column: doc_title
-  - action: fill
-    page: history
-    selector: "#TODO_doc_content_textarea"   # TODO
-    csv_column: doc_content
   - action: click
     page: history
-    selector: "#TODO_doc_submit_button"      # TODO
-  - action: handle_dialog
-    page: history
-    accept: true
-  - action: certificate_sign
-    page: history
-  - action: wait_for_selector
-    page: history
-    selector: "#TODO_doc_success_marker"     # TODO: 문서등록 완료 표시
+    selector: "text=찾아보기"                # TODO
+    opens_page: doc_browse
+  - action: dblclick
+    page: doc_browse
+    selector: "text=시행문"                  # TODO
+  - action: close_page
+    page: doc_browse
 
-  # ── 4. 민원처리 ───────────────────────────────────────────────
+  # ── 4. 민원처리: 민원처리구분 탭에서 '해결' 선택 ─────────────────
   - action: click
     page: history
     selector: "text=민원처리"                # TODO
-  - action: select
-    page: history
-    selector: "#TODO_process_type_select"    # TODO
-    csv_column: process_type
-  - action: fill
-    page: history
-    selector: "#TODO_answer_textarea"        # TODO
-    csv_column: answer_content
   - action: click
     page: history
-    selector: "#TODO_complaint_submit_button" # TODO
-  - action: handle_dialog
+    selector: "text=민원처리구분"             # TODO (탭)
+  - action: click
     page: history
-    accept: true
+    selector: "text=해결"                    # TODO (드롭다운이면 action을 select로 바꾸세요)
+
+  # ── 5. 허가(신고)번호 검색 → 조회 → 기관코드 조회 팝업 ───────────
+  - action: click
+    page: history
+    selector: "text=검색"                    # TODO: 허가(신고)번호 옆 "검색" 버튼
+  - action: click
+    page: history
+    selector: "text=조회"                    # TODO: 기관코드 조회 팝업을 여는 "조회" 버튼
+    opens_page: org_lookup
+  - action: fill
+    page: org_lookup
+    selector: "#TODO_org_search_input"       # TODO: 빈 검색란
+    value: "진건읍"                          # 관할 지역명 (고정값 — 다른 지역이면 바꾸세요)
+  - action: click
+    page: org_lookup
+    selector: "text=조회"                    # TODO: 팝업 안의 "조회"(검색) 버튼
+  - action: click
+    page: org_lookup
+    selector: "text=남양주시 진건읍 도시건축과"  # TODO: 검색 결과에서 선택 (고정값)
+  - action: close_page
+    page: org_lookup
+
+  # ── 6. 조회(일련번호/문서번호 생성) → 값 읽어두기 ────────────────
+  - action: click
+    page: history
+    selector: "text=조회"                    # TODO: 일련번호(문서번호)를 생성시키는 "조회" 버튼
+  - action: capture_text
+    page: history
+    selector: "#TODO_generated_doc_no"       # TODO: 새로 생성된 문서번호가 표시되는 요소
+    save_as: doc_no
+
+  # ── 7. 처리내역/처리근거 입력 → 저장 → 전자서명 → 확인 ──────────
+  - action: fill
+    page: history
+    selector: "#TODO_process_detail_input"   # TODO: 처리내역
+    value: "건축물 해체 신고 수리"
+  - action: fill
+    page: history
+    selector: "#TODO_process_reason_input"   # TODO: 처리근거
+    from_capture: doc_no
+  - action: click
+    page: history
+    selector: "text=저장"                    # TODO
   - action: certificate_sign
     page: history
+  - action: click
+    page: history
+    selector: "text=확인"                    # TODO: 전자서명 뒤 최종 확인
   - action: wait_for_selector
     page: history
-    selector: "#TODO_complaint_success_marker" # TODO: 민원처리 완료 표시
+    selector: "#TODO_final_success_marker"   # TODO: 처리 완료를 나타내는 요소
 
 success_selector:
   page: history
-  selector: "#TODO_complaint_success_marker"  # TODO
+  selector: "#TODO_final_success_marker"     # TODO
 
-# 각 건 처리 사이 대기 시간(초). 서버 부담을 줄이고, 인증서 서명창이
-# 매번 뜨는 만큼 넉넉하게 잡는 걸 권장.
+# 각 건 처리 사이 대기 시간(초). 인증서 서명창이 매번 뜨는 만큼 넉넉하게.
 delay_between_rows_seconds: 5

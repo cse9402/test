@@ -176,9 +176,10 @@ main.py        # 진입점
 
 ```yaml
 steps:
-  - action: click            # click / fill / select / upload / check / uncheck /
-                              # press / wait_for_selector / wait_for_timeout /
-                              # handle_dialog / certificate_sign
+  - action: click            # click / dblclick / fill / select / upload / check /
+                              # uncheck / press / wait_for_selector /
+                              # wait_for_timeout / handle_dialog /
+                              # certificate_sign / capture_text / close_page
     page: main                # 어느 창에서 실행할지 (기본값 "main")
     selector: "text=건축물 생애이력"
     opens_page: history       # 이 클릭이 새 창을 띄우면, 그 창에 붙일 이름표.
@@ -187,8 +188,28 @@ steps:
     page: history
     selector: "#docTitle"
     csv_column: doc_title     # CSV의 doc_title 컬럼 값을 입력 (고정값은 value: 사용)
+  - action: close_page        # opens_page로 열었던 팝업을 닫고 원래 창으로 돌아감
+    page: doc_browse
+  - action: capture_text      # 화면에 표시된 값(예: 새로 생성된 문서번호)을 읽어서 저장
+    page: history
+    selector: "#generatedDocNo"
+    save_as: doc_no
+  - action: fill              # 방금 읽어둔 값을 다른 입력칸에 다시 사용
+    page: history
+    selector: "#reasonInput"
+    from_capture: doc_no
   - action: certificate_sign  # 인증서 비밀번호 재입력(전자서명)
     page: history
+```
+
+`selector`에 `{value}`를 쓰면 `csv_column`/`value`/`from_capture`로 채워집니다.
+목록에서 CSV 값(예: 안건번호)과 일치하는 행을 클릭할 때 유용합니다:
+
+```yaml
+- action: click
+  page: history
+  selector: "text={value}"
+  csv_column: case_no
 ```
 
 ## 다른 반복 업무 추가하기
