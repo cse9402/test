@@ -6,16 +6,56 @@
 
 ## 전체 흐름
 
-1. 소속 기관 내부 시스템(`intra.eais.go.kr/<기관코드>`)에 **공동인증서**로 로그인
-2. "건축물 생애이력" 클릭 → **새 창(팝업)** 이 열림
-3. 그 창 안에서 "건축물 해체신고처리" 메뉴로 이동, 안건 검색
-4. **문서등록** 입력 → 제출 → **인증서로 전자서명**
-5. **민원처리** 입력 → 제출 → **인증서로 전자서명**
-6. CSV의 다음 행(다음 건)에 대해 2~5 반복
+- **준비 (배치 시작 전 딱 한 번)**: `intra.eais.go.kr` 로그인 → "건축물
+  생애이력" 클릭 → **새 창(팝업)** 이 열림(`biz.blcm.go.kr`) → 그 창에서
+  인증서 로그인 한 번 더 → "건축물 해체신고처리" 메뉴로 이동
+- **건(row)마다 반복**: 목록에서 안건 클릭 → **문서등록**(찾아보기→시행문
+  선택) → **민원처리** 입력 → 제출 → **인증서로 전자서명**
+- CSV의 다음 행(다음 건)에 대해 반복. 생애이력 탭은 매번 새로 열지 않고
+  계속 재사용합니다.
 
-이 저장소는 이 전체 흐름을 하나의 YAML(`config/tasks/demolition_report_case.yaml`)로
-정의하고, 여러 창을 오가며 순서대로 실행하는 엔진(`src/automation/engine.py`)을
+이 저장소는 준비 작업을 `setup_steps`(딱 한 번), 반복 작업을 `steps`(건마다)로
+나눠 하나의 YAML(`config/tasks/demolition_report_case.yaml`)에 정의하고,
+여러 창을 오가며 순서대로 실행하는 엔진(`src/automation/engine.py`)을
 갖고 있습니다.
+
+## 실행 방식 두 가지
+
+**1) 이미 로그인된 브라우저에 붙는 방식 (`--attach`, 추천)**
+
+로그인/인증서 화면은 **사람이 직접** 처리하고, 매크로는 그 이후 반복
+작업(목록 클릭, 문서등록, 민원처리, 제출 시 전자서명)만 자동화합니다.
+인증서 로그인 화면 자체를 자동화하지 않아도 되니 더 안전하고 안정적입니다.
+
+1. 원격 디버깅 포트를 연 Edge를 띄웁니다 (한 번만 하면 되는 설정).
+   윈도우 탐색기에서 새 텍스트 파일을 만들고 아래 내용을 저장한 뒤
+   확장자를 `.bat`로 바꿔서 더블클릭하면 편합니다.
+
+   ```bat
+   start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" --remote-debugging-port=9222 --user-data-dir="C:\edge-debug-profile"
+   ```
+
+   (설치 경로가 다르면 `C:\Program Files\Microsoft\Edge\Application\msedge.exe`
+   도 확인해보세요.)
+
+2. 새로 뜬 Edge 창에서 **평소처럼 직접** 로그인 → 건축물 생애이력 클릭
+   → (필요하면 그 창에서 인증서 로그인) → 건축물 해체신고처리 메뉴까지
+   미리 이동해둡니다.
+3. 이 상태에서 매크로를 붙여서 실행합니다.
+
+   ```bash
+   python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --attach
+   ```
+
+   `--attach`를 쓰면 `config/login.yaml`도 필요 없고, 스크립트가 끝나도
+   브라우저를 닫지 않습니다(직접 띄운 창이므로).
+
+**2) 완전 자동 로그인 방식**
+
+로그인/인증서 선택까지 전부 스크립트가 처리합니다. `config/login.yaml`과
+`certificate_profiles`의 로그인용 프로필을 채워야 하고, 아래 "로그인/서명
+방식" 절을 참고하세요. 보안 프로그램이 자동화를 탐지해 막을 수 있다는
+점을 감안하세요.
 
 ## 로그인/서명 방식: 공동인증서
 
@@ -101,6 +141,11 @@ cp .env.example .env
 로그인해야만 확인할 수 있어 이 저장소에는 `TODO`로 남겨두었습니다. 아래
 순서로 채워주세요.
 
+선택자를 알아내는 데는 어느 브라우저로 녹화하든 상관없습니다 (같은
+사이트니까요). 가장 간단한 방법은 평소처럼 새 codegen 창을 띄워서
+로그인부터 한 번에 녹화하는 것입니다. (실제 반복 실행은 `--attach`로
+하더라도, 선택자를 뽑아내는 이 녹화 자체는 그냥 별도 창에서 해도 됩니다.)
+
 1. Playwright의 녹화 기능을 실행합니다 (설치된 Edge 사용).
 
    ```bash
@@ -108,19 +153,29 @@ cp .env.example .env
    ```
 
 2. 열린 브라우저 창에서 **처음부터 끝까지 한 번에** 수행합니다: 인증서
-   로그인 → 건축물 생애이력 클릭(새 창 뜸) → 건축물 해체신고처리 → 안건
-   검색 → 문서등록 입력·제출·전자서명 → 민원처리 입력·제출·전자서명.
-   중간에 새 창이 뜨면 Playwright Inspector가 자동으로 `page1` 같은 새
-   변수를 만들어 기록합니다 — 이후 그 창에서 하는 조작은 그 변수로 기록돼요.
+   로그인 → 건축물 생애이력 클릭(새 창 뜸, 필요하면 그 안에서 인증서
+   로그인 한 번 더) → 건축물 해체신고처리 → 안건 클릭 → 문서등록(찾아보기
+   →시행문) → 민원처리 입력·검색·조회 → 처리내역/처리근거 입력 → 저장 →
+   전자서명 → 확인. 중간에 새 창이 뜨면 Playwright Inspector가 자동으로
+   `page1` 같은 새 변수를 만들어 기록합니다 — 이후 그 창에서 하는 조작은
+   그 변수로 기록돼요.
 3. 옆에 뜨는 "Playwright Inspector" 창에 각 클릭/입력마다 사용된 선택자가
    자동으로 기록됩니다. **비밀번호를 입력하는 줄은 복사하기 전에 지우거나
    `****`로 바꾸세요.**
-4. 아래 파일들을 복사해서 이름에서 `.example`을 뗀 뒤, 기록된 선택자로
+4. 아래 파일을 복사해서 이름에서 `.example`을 뗀 뒤, 기록된 선택자로
    `TODO` 부분을 교체합니다.
 
    ```bash
-   cp config/login.example.yaml config/login.yaml
    cp config/tasks/demolition_report_case.example.yaml config/tasks/demolition_report_case.yaml
+   ```
+
+   `--attach` 방식으로 실행할 계획이면 `setup_steps`의 로그인 관련 단계는
+   빼고 `attach_page`만 남겨두면 됩니다 (실행 전에 사람이 직접 로그인해둘
+   것이므로). 완전 자동 로그인 방식을 쓸 거라면 `config/login.yaml`도
+   복사해서 채우세요:
+
+   ```bash
+   cp config/login.example.yaml config/login.yaml
    ```
 
    비밀번호나 인증서 비밀번호는 이 파일들에 적지 말고 `.env`에만 넣으세요.
@@ -136,15 +191,24 @@ cp .env.example .env
 
 ## 실행
 
+**`--attach` 방식** (디버깅 포트로 띄운 Edge에서 미리 로그인 + 해체신고처리
+목록까지 이동해둔 상태):
+
 ```bash
-# 처음에는 headless 없이, 데이터 1~2건으로 실제로 잘 동작하는지 눈으로 확인하세요.
+# 처음에는 데이터 1~2건으로 실제로 잘 동작하는지 눈으로 확인하세요.
+python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --attach
+
+# 일시적 오류(네트워크 지연 등)에 대비해 건마다 재시도 횟수 지정
+python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --attach --max-retries 3
+```
+
+**완전 자동 로그인 방식**:
+
+```bash
 python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv
 
 # 잘 되는 걸 확인한 뒤에는 창 없이 실행 가능
 python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --headless
-
-# 일시적 오류(네트워크 지연 등)에 대비해 건마다 재시도 횟수 지정
-python main.py --task demolition_report_case --input data/demolition_report_case_sample.csv --max-retries 3
 ```
 
 ## 결과 확인
@@ -153,8 +217,9 @@ python main.py --task demolition_report_case --input data/demolition_report_case
   실패 시 스크린샷 경로가 기록됩니다.
 - 실패한 건은 스크린샷(`screenshots/`)으로 원인을 확인한 뒤, 선택자나 데이터를
   고쳐서 실패한 행만 다시 CSV로 만들어 재실행하면 됩니다.
-- 실패했다가 다음 건으로 넘어갈 때, 중간에 열렸던 팝업 창들은 자동으로
-  정리(닫힘)되고 시작 화면으로 돌아갑니다.
+- 실패했다가 다음 건으로 넘어갈 때, 건 처리 중 열렸던 팝업(찾아보기, 기관코드
+  조회 등)은 자동으로 정리(닫힘)되고 `reset`에 지정한 화면으로 돌아갑니다.
+  `setup_steps`로 연 생애이력 탭 자체는 닫지 않고 계속 재사용합니다.
 
 ## 구조
 
@@ -166,41 +231,62 @@ config/
 data/
   demolition_report_case_sample.csv        # 입력 데이터 예시 (한 행 = 안건 하나)
 src/automation/
-  browser.py   # 브라우저 실행, 로그인, 인증서 서명(certificate_sign)
-  engine.py    # 여러 창을 오가며 YAML의 steps를 실제 클릭/입력으로 실행하는 범용 엔진
-  runner.py    # CLI: CSV를 순회하며 각 건에 대해 흐름 전체 실행, 팝업 정리, 로그 기록
+  browser.py   # 브라우저 실행(start_browser)/연결(attach_browser), 로그인, 인증서 서명
+  engine.py    # 여러 창을 오가며 YAML의 setup_steps/steps를 실제 클릭/입력으로 실행하는 범용 엔진
+  runner.py    # CLI: 준비 작업 1회 실행 후 CSV를 순회하며 각 건 처리, 팝업 정리, 로그 기록
 main.py        # 진입점
 ```
 
 ### task YAML의 step 문법
 
+task YAML은 두 부분으로 나뉩니다.
+
+- `setup_steps`: 배치를 시작하기 전 **딱 한 번만** 실행 (예: 생애이력 탭
+  열기/찾기, 해체신고처리 목록으로 이동). 여기서 연 탭은 이후 모든 건에서
+  계속 재사용됩니다.
+- `steps`: **건(row)마다** 반복 실행 (목록에서 안건 클릭부터 전자서명까지).
+
 ```yaml
+setup_steps:
+  - action: attach_page        # 이미 로그인해 열어둔 탭을 URL로 찾아 이름표를 붙임
+    match_url_contains: "biz.blcm.go.kr"
+    page_name: history
+  # 완전 자동 로그인 방식이면 attach_page 대신 click(opens_page)+certificate_sign 사용
+
 steps:
-  - action: click            # click / dblclick / fill / select / upload / check /
-                              # uncheck / press / wait_for_selector /
-                              # wait_for_timeout / handle_dialog /
-                              # certificate_sign / capture_text / close_page
-    page: main                # 어느 창에서 실행할지 (기본값 "main")
-    selector: "text=건축물 생애이력"
-    opens_page: history       # 이 클릭이 새 창을 띄우면, 그 창에 붙일 이름표.
-                               # 이후 단계에서 page: history 로 그 창을 지정
-  - action: fill
+  - action: click             # click / dblclick / fill / select / upload / check /
+                               # uncheck / press / wait_for_selector /
+                               # wait_for_timeout / handle_dialog /
+                               # certificate_sign / capture_text / close_page /
+                               # attach_page
+    page: history              # 어느 창에서 실행할지 (기본값 "main")
+    selector: "text={value}"
+    csv_column: case_no        # 목록에서 이 안건번호와 일치하는 행 클릭
+  - action: click
     page: history
-    selector: "#docTitle"
-    csv_column: doc_title     # CSV의 doc_title 컬럼 값을 입력 (고정값은 value: 사용)
-  - action: close_page        # opens_page로 열었던 팝업을 닫고 원래 창으로 돌아감
+    selector: "text=찾아보기"
+    opens_page: doc_browse     # 이 클릭이 새 창을 띄우면, 그 창에 붙일 이름표.
+                                # 이후 단계에서 page: doc_browse 로 그 창을 지정
+  - action: dblclick
     page: doc_browse
-  - action: capture_text      # 화면에 표시된 값(예: 새로 생성된 문서번호)을 읽어서 저장
+    selector: "text=시행문"
+  - action: close_page         # opens_page로 열었던 팝업을 닫고 원래 창으로 돌아감
+    page: doc_browse
+  - action: capture_text       # 화면에 표시된 값(예: 새로 생성된 문서번호)을 읽어서 저장
     page: history
     selector: "#generatedDocNo"
     save_as: doc_no
-  - action: fill              # 방금 읽어둔 값을 다른 입력칸에 다시 사용
+  - action: fill                # 방금 읽어둔 값을 다른 입력칸에 다시 사용
     page: history
     selector: "#reasonInput"
     from_capture: doc_no
-  - action: certificate_sign  # 인증서 비밀번호 재입력(로그인/전자서명)
+  - action: certificate_sign   # 인증서 비밀번호 재입력(전자서명)
     page: history
-    profile: submit_sign      # certificate_profiles 중 어느 선택자 세트를 쓸지
+    profile: submit_sign       # certificate_profiles 중 어느 선택자 세트를 쓸지
+
+reset:                          # 건 사이/재시도 사이에 어느 탭을 어디로 되돌릴지
+  page: history
+  url: "https://biz.blcm.go.kr/..."   # 해체신고처리 목록 URL
 ```
 
 인증서 비밀번호가 필요한 화면이 여러 개(예: 최초 로그인과는 별도로, 팝업으로

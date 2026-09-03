@@ -13,8 +13,8 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 
-from .browser import start_browser, login, load_yaml
-from .engine import run_flow
+from .browser import start_browser, attach_browser, login, load_yaml
+from .engine import run_flow, run_setup
 
 
 def read_rows(csv_path: str) -> list:
@@ -48,6 +48,19 @@ def main() -> int:
     parser.add_argument(
         "--login-config", default="config/login.yaml", help="로그인 설정 YAML 경로"
     )
+    parser.add_argument(
+        "--attach",
+        action="store_true",
+        help=(
+            "새 브라우저를 띄우고 자동 로그인하는 대신, 미리 사람이 로그인해둔 "
+            "브라우저(원격 디버깅 포트로 띄운)에 붙어서 그 이후 작업만 실행"
+        ),
+    )
+    parser.add_argument(
+        "--cdp-url",
+        default="http://localhost:9222",
+        help="--attach 사용 시 붙을 브라우저 주소 (기본값: http://localhost:9222)",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -60,10 +73,11 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    if not os.path.exists(args.login_config):
+    if not args.attach and not os.path.exists(args.login_config):
         print(
             f"[오류] {args.login_config} 가 없습니다. "
-            "config/login.example.yaml 을 복사해서 만드세요.",
+            "config/login.example.yaml 을 복사해서 만드세요. "
+            "(--attach 로 실행하면 로그인 설정 없이도 됩니다.)",
             file=sys.stderr,
         )
         return 1
@@ -72,31 +86,55 @@ def main() -> int:
     rows = read_rows(args.input)
     print(f"[정보] {len(rows)}건을 처리합니다. (task={args.task})")
 
-    playwright, browser, context, page = start_browser(
-        headless=args.headless, channel=args.channel or None
-    )
+    if args.attach:
+        playwright, browser, context, page = attach_browser(args.cdp_url)
+    else:
+        playwright, browser, context, page = start_browser(
+            headless=args.headless, channel=args.channel or None
+        )
     results = []
 
     try:
-        print("[정보] 로그인 중...")
-        login(page, args.login_config)
-        print("[정보] 로그인 완료")
-
-        page.goto(task_config["start_url"])
+        if args.attach:
+            print(f"[정보] 이미 실행 중인 브라우저에 연결했습니다 ({args.cdp_url}). 로그인 단계는 건너뜁니다.")
+        else:
+            print("[정보] 로그인 중...")
+            login(page, args.login_config)
+            print("[정보] 로그인 완료")
+            page.goto(task_config["start_url"])
 
         delay = task_config.get("delay_between_rows_seconds", 3)
         pages = {"main": page}
 
+        print("[정보] 준비 작업(setup_steps) 실행 중...")
+        run_setup(pages, task_config)
+        # setup_steps로 연 탭(예: history)은 매 행마다 다시 만들지 않고 계속 재사용한다.
+        persistent_keys = set(pages.keys())
+        print("[정보] 준비 작업 완료")
+
         def close_extra_pages() -> None:
-            """main을 제외한, 흐름 중에 열렸던 팝업 창들을 정리한다."""
+            """setup_steps로 연 탭은 남기고, 건별로 열렸던 팝업만 정리한다."""
             for key in list(pages.keys()):
-                if key == "main":
+                if key in persistent_keys:
                     continue
                 try:
                     pages[key].close()
                 except Exception:  # noqa: BLE001
                     pass
                 del pages[key]
+
+        # 건 사이/재시도 사이에 어느 탭을 어느 URL로 되돌릴지.
+        # (기본값: setup_steps가 없으면 main+start_url, 있으면 명시적으로 지정)
+        reset_cfg = task_config.get("reset", {})
+        reset_page_key = reset_cfg.get("page", "main")
+        reset_url = reset_cfg.get("url", task_config.get("start_url"))
+
+        def reset_to_start() -> None:
+            close_extra_pages()
+            try:
+                pages[reset_page_key].goto(reset_url)
+            except Exception:  # noqa: BLE001
+                pass
 
         for idx, row in enumerate(rows, start=1):
             status = "fail"
@@ -115,15 +153,11 @@ def main() -> int:
                     os.makedirs("screenshots", exist_ok=True)
                     screenshot_path = f"screenshots/row_{idx}_attempt_{attempt}.png"
                     try:
-                        pages["main"].screenshot(path=screenshot_path)
+                        pages[reset_page_key].screenshot(path=screenshot_path)
                     except Exception:  # noqa: BLE001
                         screenshot_path = ""
                     # 실패 후 다음 시도 전, 열려있던 팝업을 정리하고 시작 화면으로 복귀
-                    close_extra_pages()
-                    try:
-                        pages["main"].goto(task_config["start_url"])
-                    except Exception:  # noqa: BLE001
-                        pass
+                    reset_to_start()
 
             results.append(
                 {
@@ -139,17 +173,21 @@ def main() -> int:
 
             if idx < len(rows):
                 time.sleep(delay)
-                close_extra_pages()
-                pages["main"].goto(task_config["start_url"])
+                reset_to_start()
 
     finally:
         os.makedirs("results", exist_ok=True)
         out_path = f"results/{args.task}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         write_result_log(results, out_path)
         print(f"[정보] 결과 로그 저장: {out_path}")
-        context.close()
-        browser.close()
-        playwright.stop()
+        if args.attach:
+            # 사람이 직접 띄운 브라우저이므로 우리가 닫지 않는다.
+            # 연결만 끊는다 (탭/창은 그대로 둔다).
+            playwright.stop()
+        else:
+            context.close()
+            browser.close()
+            playwright.stop()
 
     success_count = sum(1 for r in results if r["status"] == "success")
     print(f"[완료] 성공 {success_count} / 전체 {len(results)}")

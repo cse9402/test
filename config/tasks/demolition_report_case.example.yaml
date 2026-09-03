@@ -1,88 +1,100 @@
-# 건축물 해체신고 민원 1건을 처음부터 끝까지 처리하는 흐름 예시.
+# 건축물 해체신고 민원 여러 건을 처리하는 흐름 예시.
 #
 # 실제 흐름 (사용자 설명 기반):
-#   (로그인 후 메인) → 건축물 생애이력(새 창, 이 새 창에서 인증서 로그인 한 번 더) →
-#   건축물 해체신고처리 →
-#   목록에서 안건 1건 클릭 →
-#   [문서등록] 찾아보기 → 시행문 더블클릭 → 창 닫기 →
-#   [민원처리] 민원처리구분 탭에서 '해결' 선택 →
-#     허가(신고)번호 검색 → 조회 → 기관코드 조회 팝업에서 "진건읍" 검색 →
-#     "남양주시 진건읍 도시건축과" 선택 → 조회(일련번호/문서번호 생성) →
-#   처리내역 "건축물 해체 신고 수리" 입력, 처리근거에 방금 생성된 문서번호 입력 →
-#   저장 → 전자서명(하드디스크 탭, 인증서 선택, 비밀번호) → 확인 → 확인
+#   준비(딱 한 번): intra.eais.go.kr 로그인 → "건축물 생애이력" 클릭(새 창) →
+#                   그 새 창(biz.blcm.go.kr)에서 인증서 로그인 한 번 더 →
+#                   건축물 해체신고처리 메뉴로 이동
+#   건마다 반복: 목록에서 안건 1건 클릭 →
+#     [문서등록] 찾아보기 → 시행문 더블클릭 → 창 닫기 →
+#     [민원처리] 민원처리구분 탭에서 '해결' 선택 →
+#       허가(신고)번호 검색 → 조회 → 기관코드 조회 팝업에서 "진건읍" 검색 →
+#       "남양주시 진건읍 도시건축과" 선택 → 조회(일련번호/문서번호 생성) →
+#     처리내역 "건축물 해체 신고 수리" 입력, 처리근거에 방금 생성된 문서번호 입력 →
+#     저장 → 전자서명(하드디스크 탭, 인증서 선택, 비밀번호) → 확인 → 확인
+#
+# 이 파일은 기본적으로 --attach 모드(이미 로그인해둔 브라우저에 붙는 방식)를
+# 기준으로 작성되어 있습니다. 로그인/인증서 화면은 사람이 직접 처리하고,
+# 매크로는 "건축물 해체신고처리" 목록이 보이는 상태부터 이어받습니다.
+# (완전 자동 로그인 버전을 쓰고 싶으면 아래 setup_steps의 대안 블록을 참고하세요.)
 #
 # 사용법:
 #   1) 이 파일을 config/tasks/demolition_report_case.yaml 로 복사
-#   2) playwright codegen --channel msedge <로그인_URL> 로 이 전체 과정을
-#      실제로 한 번 끝까지 녹화 (비밀번호는 반드시 가리고 다룰 것)
-#   3) 녹화된 코드를 보면서 아래 TODO를 실제 선택자로 교체.
-#      특히 opens_page 로 표시해둔 부분이 실제로 새 창(팝업)인지,
-#      아니면 같은 창 안의 모달(레이어 팝업)인지 확인해서 안 맞으면
-#      opens_page 를 빼고 그냥 같은 page 값으로 통일하세요.
+#   2) 원격 디버깅 포트로 Edge를 띄우고, 그 창에서 직접 로그인 →
+#      "건축물 생애이력" 클릭 → "건축물 해체신고처리" 메뉴까지 미리 이동해둠
+#      (README의 "이미 로그인된 브라우저에 붙어서 실행" 참고)
+#   3) playwright codegen --channel msedge 로 그 상태에서부터 안건 1건을
+#      처리하는 과정을 녹화 (비밀번호는 없으니 특별히 가릴 것 없음)
+#   4) 녹화된 코드를 보면서 아래 TODO를 실제 선택자로 교체.
+#      opens_page 로 표시해둔 부분이 실제로 새 창(팝업)인지, 아니면 같은 창
+#      안의 모달(레이어 팝업)인지 확인해서 안 맞으면 opens_page 를 빼고
+#      그냥 같은 page 값으로 통일하세요.
 #
-# steps 의 각 항목:
+# steps / setup_steps 의 각 항목:
 #   - action: click / dblclick / fill / select / upload / check / uncheck /
 #             press / wait_for_selector / wait_for_timeout / handle_dialog /
-#             certificate_sign / capture_text / close_page
+#             certificate_sign / capture_text / close_page / attach_page
 #   - page: 어느 창에서 실행할지 (기본값 "main")
 #   - opens_page: click/dblclick 이 새 창을 띄우는 경우, 그 창에 붙일 이름표
+#   - match_url_contains / page_name: attach_page 에서, 이미 열려있는 탭을
+#     URL로 찾아 이름표를 붙일 때 사용
 #   - csv_column: 이 값을 CSV의 해당 컬럼에서 가져와 입력
 #   - value: 고정값 (매번 똑같은 값일 때, 예: 관할 동 이름)
 #   - from_capture: capture_text로 미리 읽어둔 값을 다시 사용
 #   - profile: certificate_sign 단계에서 certificate_profiles 중 어느 걸 쓸지
-#     (기본값 "default")
 #   - selector에 "{value}" 를 쓰면 csv_column/value/from_capture 값으로 채워짐
 #     (예: 목록에서 안건번호로 특정 행을 찾아 클릭할 때)
 
 task_name: demolition_report_case
 
-start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 로그인 후 메인 화면 URL
+# --attach 모드에서는 이 URL로 직접 이동하지 않고, 건 사이 초기화(reset)에만
+# 쓰입니다. 자동 로그인 모드를 쓴다면 로그인 후 메인 화면 URL로 채우세요.
+start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO
 
-# 인증서 비밀번호가 필요한 화면마다 선택자가 다를 수 있어 이름을 붙여 따로 등록.
-# certificate_sign 단계에서 profile: <이름> 으로 골라 씁니다.
+# 인증서 비밀번호가 필요한 화면(문서 제출 시 전자서명 등)마다 선택자가
+# 다를 수 있어 이름을 붙여 등록. certificate_sign 단계에서 profile: <이름>
+# 으로 골라 씁니다. --attach 모드에서는 로그인용 프로필이 필요 없습니다.
 certificate_profiles:
-  # "건축물 생애이력" 새 창이 뜨자마자 하는 재로그인.
-  # 이 사이트는 최초 로그인(config/login.yaml)과 별개의 시스템이라,
-  # "인증서 로그인" 버튼부터 다시 눌러야 할 가능성이 높음.
-  history_login:
-    cert_login_button_selector: "text=인증서 로그인"  # TODO (없으면 이 줄 삭제)
-    cert_storage_button_selector: "text=하드디스크"    # TODO
-    cert_select_by_label: true
-    password_selector: "#TODO_history_login_pw_input" # TODO
-    confirm_button_selector: "text=확인"                # TODO
-
   # 문서등록/민원처리 "저장" 직후 뜨는 전자서명.
-  # 인증서를 다시 골라야 하므로 cert_storage_button_selector /
-  # cert_select_by_label 을 켜둠. (로그인 버튼은 따로 없을 가능성이 높아 생략)
   submit_sign:
     cert_storage_button_selector: "text=하드디스크"   # TODO
     cert_select_by_label: true
     password_selector: "#TODO_sign_pw_input"         # TODO
     confirm_button_selector: "text=확인"               # TODO
 
-steps:
-  # ── 1. 건축물 생애이력 새 창 열기 → 그 창에서 인증서 로그인 한 번 더 ──
-  - action: click
-    page: main
-    selector: "text=건축물 생애이력"        # TODO
-    opens_page: history
-  - action: certificate_sign
-    page: history
-    profile: history_login
-  - action: wait_for_selector
-    page: history
-    selector: "#TODO_history_logged_in_marker"  # TODO: 재로그인 성공을 나타내는 요소
+# ── 준비 작업 (배치 시작 전 딱 한 번만) ────────────────────────────
+setup_steps:
+  # [기본] --attach 모드: 사람이 미리 "건축물 해체신고처리" 목록까지
+  # 열어둔 탭을 찾아서 "history" 라는 이름표를 붙임. URL의 일부만 맞으면
+  # 되므로 정확한 전체 주소를 몰라도 됩니다.
+  - action: attach_page
+    match_url_contains: "biz.blcm.go.kr"   # TODO: 실제 도메인/경로로 조정
+    page_name: history
 
-  # ── 2. 건축물 해체신고처리 메뉴 → 목록에서 이 건 클릭 ───────────
-  - action: click
-    page: history
-    selector: "text=건축물 해체신고처리"      # TODO
+  # [대안] 완전 자동 로그인 버전을 쓰려면 위 attach_page 대신 아래처럼 바꾸세요.
+  # (이 경우 certificate_profiles에 history_login 도 추가해야 합니다)
+  # - action: click
+  #   page: main
+  #   selector: "text=건축물 생애이력"
+  #   opens_page: history
+  # - action: certificate_sign
+  #   page: history
+  #   profile: history_login
+  # - action: wait_for_selector
+  #   page: history
+  #   selector: "#TODO_history_logged_in_marker"
+  # - action: click
+  #   page: history
+  #   selector: "text=건축물 해체신고처리"
+
+# ── 건(row) 하나마다 반복 ──────────────────────────────────────────
+steps:
+  # ── 1. 목록에서 이 건 클릭 ──────────────────────────────────────
   - action: click
     page: history
     selector: "text={value}"                 # TODO: 목록에서 이 안건을 특정하는 표시(안건번호 등)
     csv_column: case_no
 
-  # ── 3. 문서등록: 찾아보기 → 시행문 더블클릭 → 창 닫기 ───────────
+  # ── 2. 문서등록: 찾아보기 → 시행문 더블클릭 → 창 닫기 ───────────
   - action: click
     page: history
     selector: "text=문서등록"                # TODO
@@ -96,7 +108,7 @@ steps:
   - action: close_page
     page: doc_browse
 
-  # ── 4. 민원처리: 민원처리구분 탭에서 '해결' 선택 ─────────────────
+  # ── 3. 민원처리: 민원처리구분 탭에서 '해결' 선택 ─────────────────
   - action: click
     page: history
     selector: "text=민원처리"                # TODO
@@ -107,7 +119,7 @@ steps:
     page: history
     selector: "text=해결"                    # TODO (드롭다운이면 action을 select로 바꾸세요)
 
-  # ── 5. 허가(신고)번호 검색 → 조회 → 기관코드 조회 팝업 ───────────
+  # ── 4. 허가(신고)번호 검색 → 조회 → 기관코드 조회 팝업 ───────────
   - action: click
     page: history
     selector: "text=검색"                    # TODO: 허가(신고)번호 옆 "검색" 버튼
@@ -128,7 +140,7 @@ steps:
   - action: close_page
     page: org_lookup
 
-  # ── 6. 조회(일련번호/문서번호 생성) → 값 읽어두기 ────────────────
+  # ── 5. 조회(일련번호/문서번호 생성) → 값 읽어두기 ────────────────
   - action: click
     page: history
     selector: "text=조회"                    # TODO: 일련번호(문서번호)를 생성시키는 "조회" 버튼
@@ -137,7 +149,7 @@ steps:
     selector: "#TODO_generated_doc_no"       # TODO: 새로 생성된 문서번호가 표시되는 요소
     save_as: doc_no
 
-  # ── 7. 처리내역/처리근거 입력 → 저장 → 전자서명 → 확인 ──────────
+  # ── 6. 처리내역/처리근거 입력 → 저장 → 전자서명 → 확인 ──────────
   - action: fill
     page: history
     selector: "#TODO_process_detail_input"   # TODO: 처리내역
@@ -162,6 +174,12 @@ steps:
 success_selector:
   page: history
   selector: "#TODO_final_success_marker"     # TODO
+
+# 건 사이/재시도 사이에 어느 탭을 어느 URL로 되돌릴지.
+# history 탭을 목록 화면으로 되돌려서 다음 건을 이어서 처리합니다.
+reset:
+  page: history
+  url: "https://biz.blcm.go.kr/TODO_해체신고처리_목록_URL"  # TODO
 
 # 각 건 처리 사이 대기 시간(초). 인증서 서명창이 매번 뜨는 만큼 넉넉하게.
 delay_between_rows_seconds: 5

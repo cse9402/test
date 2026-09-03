@@ -27,6 +27,21 @@ def start_browser(headless: bool = False, channel: str | None = "msedge"):
     return playwright, browser, context, page
 
 
+def attach_browser(cdp_url: str = "http://localhost:9222"):
+    """이미 사람이 로그인까지 마쳐둔, 원격 디버깅 포트로 띄운 브라우저에 붙는다.
+
+    로그인/인증서 화면은 사람이 직접 처리하고, 매크로는 그 이후 반복
+    작업만 자동화하고 싶을 때 start_browser()+login() 대신 이걸 쓴다.
+    브라우저는 미리 아래처럼 띄워둬야 한다(윈도우 예):
+        msedge.exe --remote-debugging-port=9222 --user-data-dir="C:\\edge-debug-profile"
+    """
+    playwright = sync_playwright().start()
+    browser = playwright.chromium.connect_over_cdp(cdp_url)
+    context = browser.contexts[0] if browser.contexts else browser.new_context()
+    page = context.pages[0] if context.pages else context.new_page()
+    return playwright, browser, context, page
+
+
 def login(page: Page, login_config_path: str = "config/login.yaml") -> None:
     """login.yaml 설정에 따라 로그인을 수행한다.
 

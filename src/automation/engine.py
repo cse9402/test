@@ -58,6 +58,20 @@ def _run_step(pages: dict, step: dict, row: dict, captured: dict, cert_profiles:
         del pages[page_key]
         return
 
+    if action == "attach_page":
+        # 이미 사람이 로그인해 열어둔 탭을 URL로 찾아서 이름표를 붙인다.
+        # (--attach 모드에서, 새로 클릭해 여는 대신 기존 탭을 그대로 사용할 때)
+        match = step["match_url_contains"]
+        any_page = next(iter(pages.values()))
+        found = next((p for p in any_page.context.pages if match in p.url), None)
+        if not found:
+            raise RuntimeError(
+                f"'{match}' 을 포함하는 URL의 탭을 찾지 못했습니다. "
+                "매크로를 실행하기 전에 그 화면을 미리 열어(로그인까지 마쳐)두세요."
+            )
+        pages[step["page_name"]] = found
+        return
+
     if page_key not in pages:
         raise KeyError(
             f"'{page_key}' 창이 아직 열려 있지 않습니다. "
@@ -123,12 +137,30 @@ def _run_step(pages: dict, step: dict, row: dict, captured: dict, cert_profiles:
         raise ValueError(f"알 수 없는 action: {action}")
 
 
-def run_flow(pages: dict, flow_config: dict, row: dict) -> None:
-    """flow_config['steps']에 정의된 순서대로 한 건(row)을 처음부터 끝까지 처리한다."""
+def _cert_profiles(flow_config: dict) -> dict:
     cert_profiles = dict(flow_config.get("certificate_profiles", {}))
     # 이전 버전과의 호환: certificate_signature 단일 블록을 "default" 프로필로 사용
     if "certificate_signature" in flow_config:
         cert_profiles.setdefault("default", flow_config["certificate_signature"])
+    return cert_profiles
+
+
+def run_setup(pages: dict, flow_config: dict) -> None:
+    """flow_config['setup_steps']를 딱 한 번 실행한다.
+
+    "건축물 생애이력" 탭을 열고 그 안에서 로그인하는 것처럼, 건(row)마다
+    반복할 필요 없이 배치 시작 전에 딱 한 번만 하면 되는 준비 작업에 쓴다.
+    이렇게 연 탭(예: history)은 이후 모든 행에서 계속 재사용된다.
+    """
+    cert_profiles = _cert_profiles(flow_config)
+    captured: dict = {}
+    for step in flow_config.get("setup_steps", []):
+        _run_step(pages, step, {}, captured, cert_profiles)
+
+
+def run_flow(pages: dict, flow_config: dict, row: dict) -> None:
+    """flow_config['steps']에 정의된 순서대로 한 건(row)을 처음부터 끝까지 처리한다."""
+    cert_profiles = _cert_profiles(flow_config)
     captured: dict = {}
 
     for step in flow_config.get("steps", []):
