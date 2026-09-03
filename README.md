@@ -198,8 +198,29 @@ steps:
     page: history
     selector: "#reasonInput"
     from_capture: doc_no
-  - action: certificate_sign  # 인증서 비밀번호 재입력(전자서명)
+  - action: certificate_sign  # 인증서 비밀번호 재입력(로그인/전자서명)
     page: history
+    profile: submit_sign      # certificate_profiles 중 어느 선택자 세트를 쓸지
+```
+
+인증서 비밀번호가 필요한 화면이 여러 개(예: 최초 로그인과는 별도로, 팝업으로
+뜬 사이트에서 다시 로그인해야 하는 경우)라면 `certificate_profiles`에 이름을
+붙여 여러 세트를 등록하고, 각 `certificate_sign` 단계에서 `profile:`로
+골라 씁니다.
+
+```yaml
+certificate_profiles:
+  history_login:              # 팝업 사이트 재로그인용
+    cert_login_button_selector: "text=인증서 로그인"
+    cert_storage_button_selector: "text=하드디스크"
+    cert_select_by_label: true
+    password_selector: "#loginPw"
+    confirm_button_selector: "text=확인"
+  submit_sign:                 # 문서 제출 시 전자서명용
+    cert_storage_button_selector: "text=하드디스크"
+    cert_select_by_label: true
+    password_selector: "#signPw"
+    confirm_button_selector: "text=확인"
 ```
 
 `selector`에 `{value}`를 쓰면 `csv_column`/`value`/`from_capture`로 채워집니다.

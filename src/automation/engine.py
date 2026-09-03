@@ -6,6 +6,11 @@
 
 captured 딕셔너리는 화면에 표시된 값(예: 시스템이 새로 부여한 문서번호)을
 읽어서 저장해뒀다가, 뒤의 단계에서 다시 입력값으로 쓸 때 사용한다.
+
+인증서 비밀번호 입력이 필요한 순간(최초 로그인, 팝업 사이트 재로그인, 제출
+시 전자서명 등)은 화면마다 버튼 위치가 다를 수 있어, certificate_profiles
+아래 이름을 붙여 여러 개 등록해두고 각 certificate_sign 단계에서
+profile: <이름> 으로 골라 쓴다.
 """
 from .browser import certificate_sign
 
@@ -40,7 +45,7 @@ def _resolve_selector(step: dict, row: dict, captured: dict) -> str:
     return selector
 
 
-def _run_step(pages: dict, step: dict, row: dict, captured: dict, cert_cfg: dict) -> None:
+def _run_step(pages: dict, step: dict, row: dict, captured: dict, cert_profiles: dict) -> None:
     action = step["action"]
     page_key = step.get("page", "main")
 
@@ -107,23 +112,27 @@ def _run_step(pages: dict, step: dict, row: dict, captured: dict, cert_cfg: dict
             lambda dialog: dialog.accept() if accept else dialog.dismiss(),
         )
     elif action == "certificate_sign":
-        if not cert_cfg:
+        profile_name = step.get("profile", "default")
+        if profile_name not in cert_profiles:
             raise ValueError(
-                "certificate_sign 단계를 쓰려면 flow 설정에 "
-                "certificate_signature 블록이 있어야 합니다."
+                f"'{profile_name}' 인증서 설정을 찾을 수 없습니다. flow 설정의 "
+                "certificate_profiles 에 같은 이름으로 선택자를 정의하세요."
             )
-        certificate_sign(page, cert_cfg)
+        certificate_sign(page, cert_profiles[profile_name])
     else:
         raise ValueError(f"알 수 없는 action: {action}")
 
 
 def run_flow(pages: dict, flow_config: dict, row: dict) -> None:
     """flow_config['steps']에 정의된 순서대로 한 건(row)을 처음부터 끝까지 처리한다."""
-    cert_cfg = flow_config.get("certificate_signature", {})
+    cert_profiles = dict(flow_config.get("certificate_profiles", {}))
+    # 이전 버전과의 호환: certificate_signature 단일 블록을 "default" 프로필로 사용
+    if "certificate_signature" in flow_config:
+        cert_profiles.setdefault("default", flow_config["certificate_signature"])
     captured: dict = {}
 
     for step in flow_config.get("steps", []):
-        _run_step(pages, step, row, captured, cert_cfg)
+        _run_step(pages, step, row, captured, cert_profiles)
 
     success = flow_config.get("success_selector")
     if success:

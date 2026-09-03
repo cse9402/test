@@ -1,7 +1,8 @@
 # 건축물 해체신고 민원 1건을 처음부터 끝까지 처리하는 흐름 예시.
 #
 # 실제 흐름 (사용자 설명 기반):
-#   (로그인 후 메인) → 건축물 생애이력(새 창) → 건축물 해체신고처리 →
+#   (로그인 후 메인) → 건축물 생애이력(새 창, 이 새 창에서 인증서 로그인 한 번 더) →
+#   건축물 해체신고처리 →
 #   목록에서 안건 1건 클릭 →
 #   [문서등록] 찾아보기 → 시행문 더블클릭 → 창 닫기 →
 #   [민원처리] 민원처리구분 탭에서 '해결' 선택 →
@@ -28,6 +29,8 @@
 #   - csv_column: 이 값을 CSV의 해당 컬럼에서 가져와 입력
 #   - value: 고정값 (매번 똑같은 값일 때, 예: 관할 동 이름)
 #   - from_capture: capture_text로 미리 읽어둔 값을 다시 사용
+#   - profile: certificate_sign 단계에서 certificate_profiles 중 어느 걸 쓸지
+#     (기본값 "default")
 #   - selector에 "{value}" 를 쓰면 csv_column/value/from_capture 값으로 채워짐
 #     (예: 목록에서 안건번호로 특정 행을 찾아 클릭할 때)
 
@@ -35,21 +38,40 @@ task_name: demolition_report_case
 
 start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 로그인 후 메인 화면 URL
 
-# 저장 시 뜨는 전자서명 창 선택자. 인증서를 다시 골라야 하므로
-# cert_storage_button_selector / cert_select_by_label 을 켜둠.
-# (로그인 때와 달리 "인증서 로그인" 버튼은 따로 없을 가능성이 높아 생략)
-certificate_signature:
-  cert_storage_button_selector: "text=하드디스크"   # TODO
-  cert_select_by_label: true
-  password_selector: "#TODO_sign_pw_input"         # TODO
-  confirm_button_selector: "text=확인"               # TODO
+# 인증서 비밀번호가 필요한 화면마다 선택자가 다를 수 있어 이름을 붙여 따로 등록.
+# certificate_sign 단계에서 profile: <이름> 으로 골라 씁니다.
+certificate_profiles:
+  # "건축물 생애이력" 새 창이 뜨자마자 하는 재로그인.
+  # 이 사이트는 최초 로그인(config/login.yaml)과 별개의 시스템이라,
+  # "인증서 로그인" 버튼부터 다시 눌러야 할 가능성이 높음.
+  history_login:
+    cert_login_button_selector: "text=인증서 로그인"  # TODO (없으면 이 줄 삭제)
+    cert_storage_button_selector: "text=하드디스크"    # TODO
+    cert_select_by_label: true
+    password_selector: "#TODO_history_login_pw_input" # TODO
+    confirm_button_selector: "text=확인"                # TODO
+
+  # 문서등록/민원처리 "저장" 직후 뜨는 전자서명.
+  # 인증서를 다시 골라야 하므로 cert_storage_button_selector /
+  # cert_select_by_label 을 켜둠. (로그인 버튼은 따로 없을 가능성이 높아 생략)
+  submit_sign:
+    cert_storage_button_selector: "text=하드디스크"   # TODO
+    cert_select_by_label: true
+    password_selector: "#TODO_sign_pw_input"         # TODO
+    confirm_button_selector: "text=확인"               # TODO
 
 steps:
-  # ── 1. 건축물 생애이력 새 창 열기 ──────────────────────────────
+  # ── 1. 건축물 생애이력 새 창 열기 → 그 창에서 인증서 로그인 한 번 더 ──
   - action: click
     page: main
     selector: "text=건축물 생애이력"        # TODO
     opens_page: history
+  - action: certificate_sign
+    page: history
+    profile: history_login
+  - action: wait_for_selector
+    page: history
+    selector: "#TODO_history_logged_in_marker"  # TODO: 재로그인 성공을 나타내는 요소
 
   # ── 2. 건축물 해체신고처리 메뉴 → 목록에서 이 건 클릭 ───────────
   - action: click
@@ -129,6 +151,7 @@ steps:
     selector: "text=저장"                    # TODO
   - action: certificate_sign
     page: history
+    profile: submit_sign
   - action: click
     page: history
     selector: "text=확인"                    # TODO: 전자서명 뒤 최종 확인
