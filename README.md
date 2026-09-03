@@ -4,6 +4,32 @@
 데이터 입력 작업을, 본인의 정상 로그인 계정으로 CSV에 정리한 여러 건을
 한 번에 자동으로 처리하기 위한 Playwright 기반 스크립트입니다.
 
+## 로그인 방식: 공동인증서
+
+실제 업무 화면은 `biz.blcm.go.kr`이 아니라 소속 기관 내부 시스템
+(예: `intra.eais.go.kr/<기관코드>`)에 있고, 아이디/비밀번호가 아니라
+**공동인증서(하드디스크 저장) 로그인**을 사용합니다. 이 저장소는
+`config/login.yaml`에 `auth_type: certificate`로 설정하면 인증서 로그인을
+자동으로 처리합니다.
+
+인증서 자동 로그인에는 두 가지를 알아두세요.
+
+- 인증서 비밀번호와, 인증서 목록에서 본인 인증서를 구분하는 문구(별칭 등)는
+  **절대 YAML 파일에 직접 적지 말고** `.env`의 `BLCM_CERT_LABEL`,
+  `BLCM_CERT_PW`로만 관리하세요. `config/login.yaml`,
+  `config/tasks/*.yaml`(example 제외)은 `.gitignore`에 이미 포함되어 있어
+  실수로 커밋되지 않습니다.
+- 일부 기관 시스템은 자동화 브라우저(Playwright/Selenium)를 탐지해 로그인
+  자체를 막는 보안 모듈을 쓰기도 합니다. `--channel msedge`로 실제 설치된
+  Edge를 사용하면 이런 탐지를 어느 정도 피할 수 있지만, 100% 보장되지는
+  않습니다. 로그인 단계에서 원인 모를 실패가 반복되면 이 가능성부터
+  의심해보세요.
+
+**Playwright codegen으로 로그인 과정을 녹화해 저한테 보여주실 때는 반드시
+인증서 비밀번호 부분을 가리거나 지우고 보내주세요.** 코드에 비밀번호가
+그대로 찍히니, `fill("실제비밀번호")` 같은 줄은 `fill("****")`로 바꿔서
+공유해주시면 됩니다.
+
 ## ⚠️ 사용 전 꼭 읽어주세요
 
 - 반드시 **본인(또는 소속 기관)이 정상적으로 이용 권한을 가진 계정**으로만 사용하세요.
@@ -36,7 +62,7 @@ Edge를 사용하도록 되어 있으므로, `playwright install chromium` 단�
 
 ```bash
 # 브라우저 다운로드 없이 바로 codegen (설치된 Edge 사용)
-playwright codegen --channel msedge https://biz.blcm.go.kr/biz/cmm/main/mainPage.do
+playwright codegen --channel msedge https://intra.eais.go.kr/namyangju/index.do
 
 # 실행도 기본값이 msedge이므로 별도 옵션 없이 그대로 실행 가능
 python main.py --task document_register --input data/document_register_sample.csv
@@ -49,7 +75,8 @@ Playwright 번들 Chromium을 굳이 쓰고 싶다면 `--channel ""` 옵션으�
 
 ```bash
 cp .env.example .env
-# .env 파일을 열어 BLCM_USER_ID / BLCM_USER_PW 값을 채웁니다.
+# 인증서 로그인이면 BLCM_CERT_LABEL / BLCM_CERT_PW,
+# 아이디/비밀번호 로그인이면 BLCM_USER_ID / BLCM_USER_PW 값을 채웁니다.
 ```
 
 `.env` 파일은 `.gitignore`에 포함되어 있어 커밋되지 않습니다. 절대 직접 커밋하지 마세요.
@@ -59,16 +86,16 @@ cp .env.example .env
 로그인 화면과 문서등록/민원처리 화면의 실제 버튼·입력란 ID는 로그인해야만
 확인할 수 있어 이 저장소에는 `TODO`로 남겨두었습니다. 아래 순서로 채워주세요.
 
-1. Playwright의 녹화 기능을 실행합니다.
+1. Playwright의 녹화 기능을 실행합니다 (설치된 Edge 사용).
 
    ```bash
-   playwright codegen https://biz.blcm.go.kr/biz/cmm/main/mainPage.do
+   playwright codegen --channel msedge https://intra.eais.go.kr/namyangju/index.do
    ```
 
 2. 열린 브라우저 창에서 평소처럼 로그인 → 문서등록(또는 민원처리) 메뉴 이동 →
    입력 → 제출까지 직접 한 번 수행합니다.
 3. 옆에 뜨는 "Playwright Inspector" 창에 각 클릭/입력마다 사용된 선택자
-   (예: `#userId`, `text=문서등록`, `#submitBtn`)가 자동으로 기록됩니다.
+   (예: `text=인증서 로그인`, `text=문서등록`, `#submitBtn`)가 자동으로 기록됩니다.
 4. 아래 파일들을 복사해서 이름에서 `.example`을 뗀 뒤, 기록된 선택자로
    `TODO` 부분을 교체합니다.
 
@@ -78,9 +105,10 @@ cp .env.example .env
    cp config/tasks/civil_complaint.example.yaml config/tasks/civil_complaint.yaml
    ```
 
-`config/login.yaml`, `config/tasks/*.yaml` (example이 아닌 파일들)도 로그인
-정보나 내부 화면 구조를 담을 수 있으므로 `.gitignore`에 추가해 관리하는 것을
-권장합니다(필요하면 팀 내부 저장소에서만 공유).
+   비밀번호나 인증서 비밀번호는 이 파일들에 적지 말고 `.env`에만 넣으세요.
+   `config/login.yaml`, `config/tasks/*.yaml`(example 제외)은 내부 시스템
+   주소와 화면 구조가 담기므로 `.gitignore`에 이미 등록되어 있어 커밋되지
+   않습니다.
 
 ## 입력 데이터(CSV) 준비
 

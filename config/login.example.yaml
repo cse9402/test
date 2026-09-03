@@ -1,18 +1,28 @@
-# 로그인 화면 선택자 설정
+# 로그인 화면 설정
 # 사용법: 이 파일을 config/login.yaml 로 복사한 뒤,
-#   playwright codegen https://biz.blcm.go.kr/biz/cmm/main/mainPage.do
+#   playwright codegen --channel msedge <로그인_URL>
 # 로 로그인 과정을 녹화해서 나온 실제 선택자로 아래 TODO 값들을 교체하세요.
+# (비밀번호/인증서 비밀번호는 절대 이 파일에 직접 쓰지 마세요. .env 에서 읽습니다.)
 
-login_url: "https://biz.blcm.go.kr/biz/cmm/main/mainPage.do"  # TODO: 실제 로그인 페이지 URL로 교체
+auth_type: certificate   # "certificate"(공동인증서) 또는 "id_pw"(아이디/비밀번호)
 
-# 로그인 버튼/링크를 눌러 로그인 폼을 열어야 한다면 채우고, 이미 메인에 폼이 보이면 비워두거나 생략
+login_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 실제 로그인 페이지 URL로 교체
+
+# ── auth_type: certificate 일 때 사용 ──────────────────────────────
+cert_login_button_selector: "text=인증서 로그인"       # TODO
+cert_storage_button_selector: "text=하드디스크"         # TODO
+# 인증서 목록에서 본인 인증서를 클릭할 때 쓰는 표시 문구는
+# .env 의 BLCM_CERT_LABEL 값을 사용합니다 (개인 식별 정보라 여기 적지 않음).
+cert_password_selector: "#TODO_cert_pw_input"           # TODO
+cert_confirm_button_selector: "text=확인"                # TODO
+
+# ── auth_type: id_pw 일 때 사용 (필요 없으면 삭제 가능) ─────────────
 open_login_form:
   selector: null   # 예: "text=로그인"  # TODO
-
 id_selector: "#TODO_id_input"        # TODO
 pw_selector: "#TODO_pw_input"        # TODO
 submit_selector: "#TODO_login_button" # TODO
 
 # 로그인 성공을 판별할 요소 (예: 로그인 후에만 보이는 사용자 이름, 로그아웃 버튼 등)
 success_selector: "#TODO_logged_in_marker"  # TODO
-success_timeout_ms: 15000
+success_timeout_ms: 20000

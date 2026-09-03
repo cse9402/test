@@ -3,7 +3,7 @@
 
 task_name: civil_complaint
 
-start_url: "https://biz.blcm.go.kr/biz/cmm/main/mainPage.do"
+start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 로그인 후 실제 시작 화면 URL로 교체
 
 steps_before_form:
   - action: click

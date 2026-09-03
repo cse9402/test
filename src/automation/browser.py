@@ -28,12 +28,30 @@ def start_browser(headless: bool = False, channel: str | None = "msedge"):
 
 
 def login(page: Page, login_config_path: str = "config/login.yaml") -> None:
-    """login.yaml 설정에 따라 아이디/비밀번호 로그인을 수행한다.
+    """login.yaml 설정에 따라 로그인을 수행한다.
 
-    자격 증명은 .env 의 BLCM_USER_ID / BLCM_USER_PW 에서 읽는다.
+    auth_type: id_pw       -> BLCM_USER_ID / BLCM_USER_PW (.env)
+    auth_type: certificate -> BLCM_CERT_LABEL / BLCM_CERT_PW (.env)
     """
     cfg = load_yaml(login_config_path)
+    auth_type = cfg.get("auth_type", "id_pw")
 
+    page.goto(cfg["login_url"])
+
+    if auth_type == "certificate":
+        _login_with_certificate(page, cfg)
+    elif auth_type == "id_pw":
+        _login_with_id_pw(page, cfg)
+    else:
+        raise ValueError(f"알 수 없는 auth_type: {auth_type}")
+
+    page.wait_for_selector(
+        cfg["success_selector"],
+        timeout=cfg.get("success_timeout_ms", 15000),
+    )
+
+
+def _login_with_id_pw(page: Page, cfg: dict) -> None:
     user_id = os.environ.get("BLCM_USER_ID")
     user_pw = os.environ.get("BLCM_USER_PW")
     if not user_id or not user_pw:
@@ -41,8 +59,6 @@ def login(page: Page, login_config_path: str = "config/login.yaml") -> None:
             ".env 파일에 BLCM_USER_ID / BLCM_USER_PW 가 설정되어 있지 않습니다. "
             ".env.example 을 복사해 값을 채워주세요."
         )
-
-    page.goto(cfg["login_url"])
 
     open_form = cfg.get("open_login_form", {})
     if open_form and open_form.get("selector"):
@@ -52,7 +68,24 @@ def login(page: Page, login_config_path: str = "config/login.yaml") -> None:
     page.fill(cfg["pw_selector"], user_pw)
     page.click(cfg["submit_selector"])
 
-    page.wait_for_selector(
-        cfg["success_selector"],
-        timeout=cfg.get("success_timeout_ms", 15000),
-    )
+
+def _login_with_certificate(page: Page, cfg: dict) -> None:
+    """공동인증서(하드디스크 저장) 로그인.
+
+    cert_label 은 인증서 목록 화면에서 본인 인증서를 구분하는 표시 문구
+    (예: 인증서 별칭 일부)이며, 개인 식별 정보를 담을 수 있으므로
+    .env 의 BLCM_CERT_LABEL 로 관리한다.
+    """
+    cert_label = os.environ.get("BLCM_CERT_LABEL")
+    cert_pw = os.environ.get("BLCM_CERT_PW")
+    if not cert_label or not cert_pw:
+        raise RuntimeError(
+            ".env 파일에 BLCM_CERT_LABEL / BLCM_CERT_PW 가 설정되어 있지 않습니다. "
+            ".env.example 을 복사해 값을 채워주세요."
+        )
+
+    page.click(cfg["cert_login_button_selector"])
+    page.click(cfg["cert_storage_button_selector"])
+    page.get_by_text(cert_label).click()
+    page.fill(cfg["cert_password_selector"], cert_pw)
+    page.click(cfg["cert_confirm_button_selector"])

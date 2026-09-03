@@ -6,3 +6,9 @@ screenshots/
 results/
 .venv/
 venv/
+
+# 실제 로그인/화면 설정 (인증서 이름, 내부 URL, 선택자 등 민감 정보 포함).
+# example.yaml 템플릿만 커밋하고, 실제 채운 파일은 로컬에만 둔다.
+config/login.yaml
+config/tasks/*.yaml
+!config/tasks/*.example.yaml

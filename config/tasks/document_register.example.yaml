@@ -8,7 +8,7 @@
 
 task_name: document_register
 
-start_url: "https://biz.blcm.go.kr/biz/cmm/main/mainPage.do"
+start_url: "https://intra.eais.go.kr/namyangju/index.do"  # TODO: 로그인 후 실제 시작 화면 URL로 교체
 
 # 폼 입력 전에 메뉴 클릭 등으로 문서등록 화면까지 이동하는 단계
 steps_before_form:
