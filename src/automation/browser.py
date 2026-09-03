@@ -9,9 +9,19 @@ def load_yaml(path: str) -> dict:
         return yaml.safe_load(f)
 
 
-def start_browser(headless: bool = False):
+def start_browser(headless: bool = False, channel: str | None = "msedge"):
+    """브라우저를 실행한다.
+
+    channel 을 지정하면(기본값 "msedge") Playwright 전용 Chromium을
+    새로 내려받지 않고, 이미 컴퓨터에 설치된 Edge/Chrome을 그대로 사용한다.
+    사내망 등에서 cdn.playwright.dev 접속이 막혀 브라우저 다운로드가
+    실패하는 경우에 유용하다. channel=None 이면 Playwright 번들 Chromium을 쓴다.
+    """
     playwright = sync_playwright().start()
-    browser = playwright.chromium.launch(headless=headless)
+    launch_kwargs = {"headless": headless}
+    if channel:
+        launch_kwargs["channel"] = channel
+    browser = playwright.chromium.launch(**launch_kwargs)
     context = browser.new_context()
     page = context.new_page()
     return playwright, browser, context, page

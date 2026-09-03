@@ -25,6 +25,26 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+### 사내망/관공서 PC에서 `playwright install chromium`이 실패할 때
+
+`cdn.playwright.dev` 접속이 화이트리스트 방식으로 막혀 있어 브라우저 다운로드가
+`ECONNRESET` 등으로 계속 실패하는 경우, 브라우저를 새로 받지 않고 **이미 설치된
+Edge/Chrome을 그대로 사용**할 수 있습니다. 이 저장소의 `main.py`와
+`playwright codegen`은 기본적으로(`--channel msedge`) Windows에 기본 설치된
+Edge를 사용하도록 되어 있으므로, `playwright install chromium` 단계를
+건너뛰어도 됩니다.
+
+```bash
+# 브라우저 다운로드 없이 바로 codegen (설치된 Edge 사용)
+playwright codegen --channel msedge https://biz.blcm.go.kr/biz/cmm/main/mainPage.do
+
+# 실행도 기본값이 msedge이므로 별도 옵션 없이 그대로 실행 가능
+python main.py --task document_register --input data/document_register_sample.csv
+```
+
+Playwright 번들 Chromium을 굳이 쓰고 싶다면 `--channel ""` 옵션으로 끌 수 있습니다
+(이 경우 `playwright install chromium` 다운로드가 성공해야 합니다).
+
 자격 증명 설정:
 
 ```bash

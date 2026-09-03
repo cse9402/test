@@ -38,6 +38,14 @@ def main() -> int:
     parser.add_argument("--headless", action="store_true", help="브라우저 창을 띄우지 않음")
     parser.add_argument("--max-retries", type=int, default=1, help="행별 최대 재시도 횟수")
     parser.add_argument(
+        "--channel",
+        default="msedge",
+        help=(
+            "이미 설치된 브라우저를 사용 (msedge, chrome 등). "
+            "빈 문자열('')로 지정하면 Playwright 번들 Chromium을 사용."
+        ),
+    )
+    parser.add_argument(
         "--login-config", default="config/login.yaml", help="로그인 설정 YAML 경로"
     )
     args = parser.parse_args()
@@ -64,7 +72,9 @@ def main() -> int:
     rows = read_rows(args.input)
     print(f"[정보] {len(rows)}건을 처리합니다. (task={args.task})")
 
-    playwright, browser, context, page = start_browser(headless=args.headless)
+    playwright, browser, context, page = start_browser(
+        headless=args.headless, channel=args.channel or None
+    )
     results = []
 
     try:
