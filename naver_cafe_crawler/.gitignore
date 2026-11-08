@@ -1,0 +1,13 @@
+# 인증 정보 / 로컬 데이터 - 절대 커밋 금지
+.env
+browser_profile/
+data/
+logs/
+exports/
+diagnostics/
+*.db
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
